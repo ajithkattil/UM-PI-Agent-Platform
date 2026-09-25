@@ -1,0 +1,11 @@
+langgraph
+langchain-core
+langchain-text-splitters
+langchain-openai
+langchain-pinecone
+pinecone
+anthropic
+psycopg2-binary
+pydantic
+python-dotenv
+streamlit
