@@ -15,11 +15,27 @@ def upsert_chunks(file_name: str, chunks: list) -> None:
     """Embeds and upserts chunks to Pinecone with deterministic IDs
     ({file_name}-chunk-{idx}), same pattern as the cold-chain ingestion
     script — this is what makes purge-and-replace-on-update safe."""
-    from pinecone import Pinecone
+    from pinecone import Pinecone, ServerlessSpec
     from langchain_pinecone import PineconeVectorStore
     from langchain_openai import OpenAIEmbeddings
 
     pc = Pinecone(api_key=config.PINECONE_API_KEY)
+
+    # Create the index if it doesn't exist yet — text-embedding-3-small (the
+    # OpenAIEmbeddings default) is 1536-dimensional.
+    existing_indexes = pc.list_indexes().names()
+    if config.POLICY_INDEX_NAME not in existing_indexes:
+        print(f"Creating Pinecone index: {config.POLICY_INDEX_NAME} (1536 dim)...")
+        pc.create_index(
+            name=config.POLICY_INDEX_NAME,
+            dimension=1536,
+            metric="cosine",
+            spec=ServerlessSpec(cloud="aws", region="us-east-1"),
+        )
+        import time
+        while not pc.describe_index(config.POLICY_INDEX_NAME).status["ready"]:
+            time.sleep(1)
+
     embeddings = OpenAIEmbeddings()
     vector_store = PineconeVectorStore(index_name=config.POLICY_INDEX_NAME, embedding=embeddings)
 
