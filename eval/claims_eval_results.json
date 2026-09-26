@@ -32,7 +32,7 @@
     "expected": "deny",
     "actual": "deny",
     "correct": true,
-    "citation": "Coverage Criteria (visits beyond 20), item 1 (progress notes from completed visits showing functional improvement or documented plateau not submitted)"
+    "citation": "Coverage Criteria (visits beyond 20), item 1 (progress notes from completed visits showing functional improvement or documented plateau requiring continued skilled intervention not submitted)"
   },
   {
     "label": "claim_duplicate_original",
@@ -51,8 +51,8 @@
   {
     "label": "claim_flag_siu_volume_anomaly",
     "expected": "flag_siu",
-    "actual": "deny",
-    "correct": false,
-    "citation": "No prior authorization on file for a service that requires one."
+    "actual": "flag_siu",
+    "correct": true,
+    "citation": "Volume anomaly flag is True with an 8.0x ratio to peer median, which is sufficient grounds to flag despite no threshold clustering."
   }
 ]
