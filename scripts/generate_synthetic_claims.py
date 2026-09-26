@@ -204,7 +204,8 @@ def build_claim_insert(claim_id, member_i, provider_i, service_code,
         f"service_description, billed_amount, date_of_service, submitted_at, status, clinical_notes) VALUES "
         f"('{claim_id}', '{member}', '{provider}', '{service_code}', "
         f"'{service_description}', {billed_amount}, '{date_of_service}', '{submitted_at}', "
-        f"'{doc_status}', '{notes}');"
+        f"'{doc_status}', '{notes}') "
+        f"ON CONFLICT (claim_id) DO NOTHING;"
     )
 
 
@@ -233,7 +234,8 @@ def build_seed_sql() -> str:
             doc_id = uid(f"claimdoc-{s['label']}-{doc}")
             lines.append(
                 f"INSERT INTO claim_documents (document_id, claim_id, doc_type, content_ref) VALUES "
-                f"('{doc_id}', '{claim_id}', '{doc}', 'synthetic:{s['label']}:{doc}');"
+                f"('{doc_id}', '{claim_id}', '{doc}', 'synthetic:{s['label']}:{doc}') "
+                f"ON CONFLICT (document_id) DO NOTHING;"
             )
 
     return "\n".join(lines) + "\n"

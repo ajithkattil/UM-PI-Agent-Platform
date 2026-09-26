@@ -187,7 +187,11 @@ with tab_review:
                         citation=review_citation or "(reviewer decision, no citation given)",
                         reviewer_id=reviewer_id,
                     )
-                    st.success("Reviewer decision recorded.")
+                    # st.success() here gets wiped out by the st.rerun() below
+                    # before it's ever visible — st.toast() is built to
+                    # survive exactly this pattern (show feedback, then
+                    # rerun to refresh the list).
+                    st.toast(f"Reviewer decision recorded for {case['request_id'][:8]}...", icon="✅")
                     st.rerun()
 
 # --- Tab 4: Audit Log (Admin) ---

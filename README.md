@@ -164,23 +164,26 @@ Read in order — each one assumes the last is settled:
 ## What's built vs. what's proven
 
 **[BUILD_NOTES.md](BUILD_NOTES.md)** is the important one before you touch
-anything else — it lists exactly what has been run for real (DB guardrails
-tested adversarially, intake agent run against all 14 scenarios, the actual
-compiled LangGraph run end-to-end with a scripted model, policy chunking run
-against the real policy docs) versus what's written but not yet exercised
-(real LLM reasoning quality, real Pinecone retrieval — both need API keys
-this build environment didn't have).
+anything else — Phase 1 is fully built and verified end-to-end, including
+real LLM reasoning (100% decision accuracy, 100% citation correctness, 0%
+false-escalation rate, against your own Anthropic + Pinecone keys) and the
+full Streamlit UI, all four tabs, confirmed working live. See that file for
+the two real bugs eval caught and fixed along the way — they're better
+evidence of engineering rigor than a clean run would have been.
 
 ## Repo structure
 
 ```
 docs/                       # design documents, read in order above
 data/policy/                # 4 coverage policy documents (synthetic)
-data/synthetic_requests/    # seed.sql — 14 synthetic PA requests
-eval/test_cases.jsonl       # same 14 cases with expected outcomes, for eval
+data/synthetic_requests/    # seed.sql — 14 synthetic PA requests (with clinical_notes)
+eval/
+  test_cases.jsonl          # 14 cases with expected outcomes, for eval
+  run_eval.py                # runs all 14 through the REAL decision agent + Pinecone
+  eval_results.json           # written by run_eval.py — full per-case results
 scripts/
   schema.sql                 # Postgres table definitions
-  setup_db_roles.sql         # guardrail role grants (pa_agent_role, pa_admin_role)
+  setup_db_roles.sql         # guardrail role grants (pa_agent_role, pa_intake_role, pa_admin_role)
   generate_synthetic_data.py # regenerates the synthetic data above
   ingest_policy_pinecone.py  # policy chunking + Pinecone upsert (--dry-run works without credentials)
 src/
@@ -188,11 +191,12 @@ src/
   config.py                  # model gateway, escalation threshold, required-docs checklist
   audit.py                   # append-only audit log read/write
   orchestrator.py             # LangGraph wiring
+  ui.py                       # Streamlit app — submit/decide/reviewer-queue/audit-log tabs
   agents/
     intake_agent.py           # documentation completeness check (no LLM needed)
     decision_agent.py         # policy evaluation + citation validation/retry
   tools/
-    db_tools.py                # restricted DB queries
+    db_tools.py                # three DB roles: agent (decisioning), intake (submission), admin (audit + reviewer decisions)
     policy_tools.py             # Pinecone retrieval + effective-date filtering
 tests/
   test_intake_agent.py         # runs intake against all 14 scenarios via live DB
@@ -234,9 +238,10 @@ it.
 cp .env.example .env
 ```
 
-Fill in: `ANTHROPIC_API_KEY`, `PINECONE_API_KEY`, `OPENAI_API_KEY`, and pick a
-`DB_PASSWORD` value — you'll set the actual database role to this same
-password in step 4, so whatever you choose here has to match there.
+Fill in: `ANTHROPIC_API_KEY`, `PINECONE_API_KEY`, `OPENAI_API_KEY`, and pick
+values for `DB_PASSWORD`, `DB_ADMIN_PASSWORD`, and `DB_INTAKE_PASSWORD` — one
+per database role (see Step 4). You'll set the actual database roles to
+these same passwords, so whatever you choose here has to match there.
 
 ### 3. Create the database and load the schema
 
@@ -250,10 +255,13 @@ psql -d pa_agent_poc -f scripts/schema.sql
 ```bash
 psql -d pa_agent_poc -f scripts/setup_db_roles.sql
 
-# The script creates the roles with a placeholder password — set the real
-# ones to match your .env (DB_PASSWORD from step 2) now:
+# The script creates all three roles with a placeholder password — set the
+# real ones to match your .env (Step 2) now. Three roles, three distinct
+# jobs: pa_agent_role decides, pa_intake_role submits, pa_admin_role reviews
+# and audits. None of them can do another's job — that's the guardrail.
 psql -d pa_agent_poc -c "ALTER ROLE pa_agent_role WITH PASSWORD '<your DB_PASSWORD>';"
-psql -d pa_agent_poc -c "ALTER ROLE pa_admin_role WITH PASSWORD '<a separate admin password>';"
+psql -d pa_agent_poc -c "ALTER ROLE pa_admin_role WITH PASSWORD '<your DB_ADMIN_PASSWORD>';"
+psql -d pa_agent_poc -c "ALTER ROLE pa_intake_role WITH PASSWORD '<your DB_INTAKE_PASSWORD>';"
 ```
 
 ### 5. Load the synthetic seed data
@@ -307,11 +315,37 @@ LangGraph with a scripted fake model, proving the wiring itself (citation
 retry, confidence-threshold override, malformed-output handling) independent
 of real model quality.
 
+### 10. Run the real eval — actual LLM reasoning, actual Pinecone retrieval
+
+```bash
+python eval/run_eval.py
+```
+
+This is the one step everything before it was building toward: real
+Anthropic calls, real retrieval against the policies you ingested in Step 8,
+scored against all 14 known-outcome cases. Expect 100% decision accuracy,
+100% citation correctness on the deny cases, and 0% false-escalation — if
+your numbers are meaningfully different, something in Steps 1–9 didn't take;
+recheck before moving on. Full per-case output is written to
+`eval/eval_results.json`.
+
+### 11. Launch the UI
+
+```bash
+streamlit run src/ui.py
+```
+
+Four tabs: submit a request and watch it get decided live, browse all
+requests and their decisions, resolve escalated cases as a human reviewer,
+and search the audit trail by request ID. The Submit Request and Reviewer
+Queue tabs use `pa_intake_role` and `pa_admin_role` respectively (Step 4) —
+if either tab errors on load, double check those two passwords landed
+correctly in `.env`.
+
 ## Next steps
 
-See the end of `BUILD_NOTES.md` for full detail — in short, once steps 0–9
-above are done: build `eval/run_eval.py` to run all 14
-`eval/test_cases.jsonl` cases through the **real** decision agent (this is
-the first point where actual LLM reasoning quality gets measured, not
-assumed), tune `ESCALATION_THRESHOLD` from those results, then build the
-Streamlit UI (`src/ui.py`).
+Phase 1 is complete — see `BUILD_NOTES.md`. Phase 2 (Claims / Payment
+Integrity) is fully designed (`docs/04-Claims-Usecase-Document.md` through
+`docs/06-Claims-Low-Level-Design.md`) but not yet coded — that's the next
+work to pick up, starting with the new database schema and guardrail roles
+described in the Phase 2 LLD.
