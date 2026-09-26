@@ -12,6 +12,7 @@ import json
 from typing import Callable
 from src.schemas import GraphState, Decision, PARequest, PolicyChunk
 from src.audit import write_audit_entry
+from src.tools.db_tools import record_decision
 from src import config
 
 # Fixed prompt sections per LLD Section 8 — not free-form.
@@ -22,9 +23,15 @@ whether this request should be approved or denied, you must output "escalate"
 rather than guess. If you deny, you must cite the specific policy section your
 denial is based on; a denial with no citation is not a valid response.
 
+Your citation must name the specific criterion or requirement that was not met —
+not just the section header. "Coverage Criteria" alone is not an acceptable
+citation; "Coverage Criteria, item 2 (6-week conservative therapy trial not
+documented)" is. This matters beyond style: a specific, citable reason for every
+denial is a regulatory requirement (CMS-0057-F), not a formatting preference.
+
 Respond with a single JSON object matching this schema exactly, and nothing else:
 {"outcome": "approve" | "deny" | "escalate",
- "citation": "<policy section cited, or null>",
+ "citation": "<specific policy section AND the specific criterion/number cited, or null>",
  "confidence": <float 0.0-1.0>,
  "reasoning_summary": "<one or two sentences>"}
 """
@@ -39,7 +46,9 @@ def build_prompt(request: PARequest, retrieved_policy: list[PolicyChunk]) -> str
         f"{SYSTEM_INSTRUCTIONS}\n\n"
         f"--- Request ---\n"
         f"Service: {request.service_description} ({request.service_code})\n"
-        f"Request type: {request.request_type}\n\n"
+        f"Request type: {request.request_type}\n"
+        f"Documents submitted: {', '.join(request.documents) or 'none'}\n"
+        f"Clinical notes: {request.clinical_notes or '(none provided)'}\n\n"
         f"--- Retrieved Policy ---\n{policy_text}\n"
     )
 
@@ -53,10 +62,16 @@ def _default_llm_call(prompt: str) -> str:
         client = anthropic.Anthropic()
         response = client.messages.create(
             model=config.MODEL_NAME,
-            max_tokens=500,
+            max_tokens=2048,
             messages=[{"role": "user", "content": prompt}],
         )
-        return response.content[0].text
+        # With extended thinking involved, content[0] can be a ThinkingBlock
+        # rather than the text response — find the actual text block instead
+        # of assuming position 0.
+        for block in response.content:
+            if getattr(block, "type", None) == "text":
+                return block.text
+        raise ValueError(f"No text block found in model response: {response.content!r}")
     raise NotImplementedError(f"Model provider {config.MODEL_PROVIDER} not wired up yet")
 
 
@@ -64,22 +79,36 @@ def decision_node(state: GraphState, llm_call_fn: Callable[[str], str] = _defaul
     request = state.request
     prompt = build_prompt(request, state.retrieved_policy)
 
-    raw = llm_call_fn(prompt)
-    decision = _parse_decision(raw)
-
+    retried = False
+    try:
+        raw = llm_call_fn(prompt)
+        decision = _parse_decision(raw)
+    except Exception as e:
+        # A raw API-level failure (e.g. the model returning only a thinking
+        # block with no text, or a network/API error) is the same class of
+        # problem as malformed JSON output — escalate, don't crash the graph.
+        decision = Decision(
+            outcome="escalate",
+            citation=None,
+            confidence=0.0,
+            reasoning_summary=f"Model call failed rather than producing a usable response: {e}",
+        )
     # Hard constraint: a deny without a citation is invalid output. Retry once
     # with an explicit correction, then hard-escalate rather than ever letting
     # an uncited denial through — this is enforced here, not just requested in
     # the prompt.
-    retried = False
     if decision.outcome == "deny" and not decision.validate_citation_rule():
         retried = True
         correction_prompt = prompt + (
             "\n\nYour previous response denied this request without a citation. "
             "A denial must cite a specific policy section. Respond again."
         )
-        raw = llm_call_fn(correction_prompt)
-        decision = _parse_decision(raw)
+        try:
+            raw = llm_call_fn(correction_prompt)
+            decision = _parse_decision(raw)
+        except Exception:
+            decision = Decision(outcome="escalate", citation=None, confidence=0.0,
+                                 reasoning_summary="Model call failed on the citation-retry attempt.")
 
         if decision.outcome == "deny" and not decision.validate_citation_rule():
             decision = Decision(
@@ -106,6 +135,17 @@ def decision_node(state: GraphState, llm_call_fn: Callable[[str], str] = _defaul
             "retried_for_citation": retried,
             "policy_chunks_used": len(state.retrieved_policy),
         },
+    )
+
+    # audit_log is the detailed trace; pa_decisions is the queryable "what
+    # did we decide" record the UI and reviewer queue read from. Both are
+    # written here — neither replaces the other.
+    record_decision(
+        request_id=request.request_id,
+        outcome=decision.outcome,
+        citation=decision.citation,
+        confidence=decision.confidence,
+        decided_by="agent",
     )
 
     state.decision = decision

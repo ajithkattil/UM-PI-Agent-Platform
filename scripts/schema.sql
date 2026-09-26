@@ -28,7 +28,10 @@ CREATE TABLE IF NOT EXISTS pa_requests (
     service_description  TEXT,
     submitted_at          TIMESTAMPTZ NOT NULL,
     status                VARCHAR(20) NOT NULL,
-    request_type          VARCHAR(20) NOT NULL
+    request_type          VARCHAR(20) NOT NULL,
+    clinical_notes        TEXT   -- the actual clinical content the Decision
+                                  -- Agent reasons over; service_code/documents
+                                  -- alone aren't enough (see BUILD_NOTES.md)
 );
 
 CREATE TABLE IF NOT EXISTS pa_request_documents (

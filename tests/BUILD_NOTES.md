@@ -59,22 +59,19 @@ but untested" stays honest as the project continues.
     violated) — tightened via an explicit prompt instruction, since a vague
     citation doesn't actually satisfy CMS-0057-F's specific-reason
     requirement even when the decision itself is correct.
+  - Both fixes and the tightened citation prompt were re-verified after
+    adding `clinical_notes` as a real column to `pa_requests` (not just
+    passed in directly from the eval JSONL) — same 14/14, 4/4, 0/9 result,
+    confirming the DB layer now genuinely supports what eval already proved
+    works, not just a shortcut around it.
 
 ## Not yet verified — needs real credentials
 
-- **`src/ui.py`** (Streamlit) — not built yet.
-- **Clinical content in the actual database** — `eval/run_eval.py` passes
-  `clinical_notes` directly from the JSONL test cases, bypassing the DB
-  entirely. `pa_requests` has no `clinical_notes` column and the seed data
-  doesn't carry it. Fine for eval; will need fixing before a real
-  submit-a-request flow (the UI) can work, since a real request has to get
-  its clinical content into the DB somehow before the Decision Agent can read
-  it back out.
+- **`src/ui.py`** (Streamlit) — not built yet. This is the only remaining
+  gap in Phase 1.
 
 ## Next steps
 
-1. Add a `clinical_notes` column to `pa_requests` (and backfill the seed
-   data) so the DB layer matches what eval already proved works
-2. Build `src/ui.py` (Streamlit) for the submit/decide/escalation-queue flow
-3. Revisit `ESCALATION_THRESHOLD` only if real-world usage surfaces a problem
+1. Build `src/ui.py` (Streamlit) for the submit/decide/escalation-queue flow
+2. Revisit `ESCALATION_THRESHOLD` only if real-world usage surfaces a problem
    — no evidence from eval that 0.75 needs adjustment

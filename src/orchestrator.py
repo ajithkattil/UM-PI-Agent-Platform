@@ -62,15 +62,15 @@ def build_graph(decision_node_fn=decision_node, policy_retrieval_node_fn=policy_
 
     graph.add_node("intake", intake_node)
     graph.add_node("policy_retrieval", policy_retrieval_node_fn)
-    graph.add_node("decision", decision_node_fn)
+    graph.add_node("decision_step", decision_node_fn)
     graph.add_node("escalation", escalation_node)
 
     graph.set_entry_point("intake")
     graph.add_conditional_edges("intake", route_after_intake, {
         "policy_retrieval": "policy_retrieval", END: END,
     })
-    graph.add_edge("policy_retrieval", "decision")
-    graph.add_conditional_edges("decision", route_after_decision, {
+    graph.add_edge("policy_retrieval", "decision_step")
+    graph.add_conditional_edges("decision_step", route_after_decision, {
         "escalation": "escalation", END: END,
     })
     graph.add_edge("escalation", END)

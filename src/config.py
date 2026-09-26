@@ -8,18 +8,26 @@ load_dotenv()
 
 # --- Model gateway (LLD Section 5 / carried over from cold-chain pattern) ---
 MODEL_PROVIDER = os.getenv("MODEL_PROVIDER", "ANTHROPIC").strip().upper()
-MODEL_NAME = os.getenv("MODEL_NAME", "claude-sonnet-4-6")
+MODEL_NAME = os.getenv("MODEL_NAME", "claude-sonnet-5")
 
 # --- Escalation threshold (LLD Section 5) ---
 # Starting value per the LLD — not derived yet. Intended to be tuned against
 # eval/run_eval.py's false-escalation-rate output once real eval runs exist.
 ESCALATION_THRESHOLD = float(os.getenv("ESCALATION_THRESHOLD", "0.75"))
 
-# --- Database (restricted agent role only — never an admin connection string) ---
+# --- Database (three distinct roles — never an admin/superuser connection
+# string for application code) ---
 DB_HOST = os.getenv("DB_HOST", "localhost")
 DB_NAME = os.getenv("DB_NAME", "pa_agent_poc")
-DB_USER = os.getenv("DB_USER", "pa_agent_role")
+
+DB_USER = os.getenv("DB_USER", "pa_agent_role")            # decision-making agent
 DB_PASSWORD = os.getenv("DB_PASSWORD", "")
+
+DB_INTAKE_USER = os.getenv("DB_INTAKE_USER", "pa_intake_role")  # request submission (UI)
+DB_INTAKE_PASSWORD = os.getenv("DB_INTAKE_PASSWORD", "")
+
+DB_ADMIN_USER = os.getenv("DB_ADMIN_USER", "pa_admin_role")     # audit viewer + reviewer decisions
+DB_ADMIN_PASSWORD = os.getenv("DB_ADMIN_PASSWORD", "")
 
 # --- Policy retrieval ---
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY", "")

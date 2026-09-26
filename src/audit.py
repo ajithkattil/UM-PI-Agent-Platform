@@ -16,7 +16,7 @@ def write_audit_entry(request_id: str, step: str, detail: dict) -> None:
 
 
 def get_audit_trail(request_id: str) -> list[dict]:
-    with _connect() as conn, conn.cursor() as cur:
+    with _connect("admin") as conn, conn.cursor() as cur:
         cur.execute(
             "SELECT step, detail, created_at FROM audit_log "
             "WHERE request_id = %s ORDER BY created_at ASC",

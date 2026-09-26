@@ -224,11 +224,13 @@ def build_seed_sql() -> str:
         member_id = MEMBERS[s["member_idx"]]["member_id"]
         provider_id = PROVIDERS[s["provider_idx"]]["provider_id"]
         submitted = days_ago(2 + i)
+        clinical_notes = s["clinical_summary"].replace("'", "''")  # escape for SQL
         lines.append(
             f"INSERT INTO pa_requests (request_id, member_id, provider_id, service_code, "
-            f"service_description, submitted_at, status, request_type) VALUES "
+            f"service_description, submitted_at, status, request_type, clinical_notes) VALUES "
             f"('{req_id}', '{member_id}', '{provider_id}', '{s['service_code']}', "
-            f"'{s['service_description']}', '{submitted}', 'submitted', '{s['request_type']}');"
+            f"'{s['service_description']}', '{submitted}', 'submitted', '{s['request_type']}', "
+            f"'{clinical_notes}');"
         )
         for doc in s["documents"]:
             doc_id = uid(f"doc-{s['label']}-{doc}")

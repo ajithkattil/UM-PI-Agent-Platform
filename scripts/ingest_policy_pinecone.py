@@ -19,7 +19,10 @@ import argparse
 import hashlib
 import json
 import re
+import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from langchain_text_splitters import MarkdownHeaderTextSplitter, RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
@@ -48,7 +51,14 @@ def extract_policy_metadata(raw_text: str) -> dict:
     if m := POLICY_ID_RE.search(raw_text):
         meta["policy_id"] = m.group(1)
     if m := SERVICE_CODE_RE.search(raw_text):
-        meta["service_code"] = m.group(1).strip()
+        # The policy doc's header writes the full line ("CPT 72148",
+        # "HCPCS A4239") but requests use the bare code ("72148", "A4239") —
+        # keep only the last token so retrieval's exact-match filter actually
+        # matches. Without this, every retrieval silently returns zero
+        # chunks and the agent correctly escalates on empty context — which
+        # looks like a reasoning failure but is actually this mismatch.
+        full = m.group(1).strip()
+        meta["service_code"] = full.split()[-1]
     return meta
 
 
@@ -80,6 +90,11 @@ def parse_and_chunk_document(doc_path: Path) -> list[Document]:
             or chunk.metadata.get("Header_1")
         )
         chunk.metadata["section_header"] = section
+
+        # Pinecone rejects null metadata values outright — strip any key
+        # whose value is None rather than sending it (e.g. superseded_date
+        # is None for every currently-active policy).
+        chunk.metadata = {k: v for k, v in chunk.metadata.items() if v is not None}
 
     return [c for c in chunks if c.page_content.strip()]
 
