@@ -1,11 +1,14 @@
-# Prior Authorization Agent — POC
+# UM-PI Agent Platform — Prior Authorization + Claims (Payment Integrity)
 
-An agentic AI system for a health payer that decides prior authorization
-requests: retrieves the relevant coverage policy, evaluates the request
-against it, and returns approve / deny-with-citation / escalate — with a
-full audit trail and DB-enforced guardrails. Built as Phase 1 of a shared
-PA + claims agentic platform (see `docs/01-Usecase-Document.md` Section 10
-for what Phase 2 reuses).
+An agentic AI platform for a health payer, covering both sides of the same
+service lifecycle: **Phase 1 (Prior Authorization)** decides pre-service
+requests — retrieves the relevant coverage policy, evaluates the request
+against it, and returns approve / deny-with-citation / escalate. **Phase 2
+(Claims / Payment Integrity)** decides post-service claims — a supervisor
+dispatches to three specialist agents (Coverage, PA Cross-Reference, Fraud)
+that reconcile into pay / deny-with-citation / flag-for-SIU / escalate. Both
+phases share one platform core and are fully built and verified end-to-end
+with real LLM reasoning (see `BUILD_NOTES.md`).
 
 ## One framework, two phases — not two separate systems
 
@@ -146,7 +149,7 @@ Read in order — each one assumes the last is settled:
    Pydantic schemas, LangGraph node/edge definitions, tool signatures,
    prompt structure
 
-**Phase 2 (Claims / Payment Integrity)** — design in progress, not yet coded:
+**Phase 2 (Claims / Payment Integrity)** — designed, built, and verified:
 
 4. **[04-Claims-Usecase-Document.md](docs/04-Claims-Usecase-Document.md)** —
    problem statement, scope (full scope, including the fraud/anomaly
@@ -155,21 +158,30 @@ Read in order — each one assumes the last is settled:
 5. **[05-Claims-High-Level-Design.md](docs/05-Claims-High-Level-Design.md)** —
    architecture and diagram for the supervisor + three-specialist-agent
    design, why multi-agent is genuinely justified here (unlike Phase 1),
-   data stores, open questions for the LLD (which comes next)
+   data stores
 6. **[06-Claims-Low-Level-Design.md](docs/06-Claims-Low-Level-Design.md)** —
-   new table schemas, guardrail roles, Pydantic schemas, deterministic
+   table schemas, guardrail roles, Pydantic schemas, deterministic
    reconciliation logic (fixed priority rules, not an LLM call), rule-based
-   fraud signal computation, tool signatures, eval plan. Code comes next.
+   fraud signal computation, tool signatures, eval plan
 
 ## What's built vs. what's proven
 
 **[BUILD_NOTES.md](BUILD_NOTES.md)** is the important one before you touch
-anything else — Phase 1 is fully built and verified end-to-end, including
-real LLM reasoning (100% decision accuracy, 100% citation correctness, 0%
-false-escalation rate, against your own Anthropic + Pinecone keys) and the
-full Streamlit UI, all four tabs, confirmed working live. See that file for
-the two real bugs eval caught and fixed along the way — they're better
-evidence of engineering rigor than a clean run would have been.
+anything else — both phases are fully built and verified end-to-end with
+real LLM reasoning against your own Anthropic + Pinecone keys:
+- **Phase 1**: 100% decision accuracy, 100% citation correctness, 0%
+  false-escalation rate. Full Streamlit UI, all four PA tabs confirmed
+  working live.
+- **Phase 2**: 100% decision accuracy, 100% citation correctness, 0%
+  false-escalation, 0% false-SIU-flag. Full Streamlit UI extension, all four
+  claims tabs (Submit Claim, Claims & Decisions, SIU Queue, Claims Examiner
+  Queue).
+
+See that file for the real bugs each eval run caught and fixed along the
+way — they're better evidence of engineering rigor than a clean run would
+have been, and Phase 2's debugging in particular untangled three genuinely
+separate issues that a threshold change alone would have masked without
+fixing any of them.
 
 ## Repo structure
 
@@ -177,30 +189,53 @@ evidence of engineering rigor than a clean run would have been.
 docs/                       # design documents, read in order above
 data/policy/                # 4 coverage policy documents (synthetic)
 data/synthetic_requests/    # seed.sql — 14 synthetic PA requests (with clinical_notes)
+data/claims/                # seed_claims.sql — 17 synthetic claims (9 background + 8 scored)
 eval/
-  test_cases.jsonl          # 14 cases with expected outcomes, for eval
-  run_eval.py                # runs all 14 through the REAL decision agent + Pinecone
-  eval_results.json           # written by run_eval.py — full per-case results
+  test_cases.jsonl          # Phase 1 — 14 cases with expected outcomes
+  run_eval.py                 # Phase 1 — runs all 14 through the REAL decision agent + Pinecone
+  eval_results.json            # written by run_eval.py
+  claims_test_cases.jsonl     # Phase 2 — 8 cases with expected outcomes
+  run_claims_eval.py           # Phase 2 — runs all 8 through the REAL claims graph
+  claims_eval_results.json     # written by run_claims_eval.py
 scripts/
-  schema.sql                 # Postgres table definitions
-  setup_db_roles.sql         # guardrail role grants (pa_agent_role, pa_intake_role, pa_admin_role)
-  generate_synthetic_data.py # regenerates the synthetic data above
-  ingest_policy_pinecone.py  # policy chunking + Pinecone upsert (--dry-run works without credentials)
+  schema.sql                    # Phase 1 Postgres tables
+  schema_claims.sql             # Phase 2 Postgres tables (claims, claim_documents, claim_decisions)
+  setup_db_roles.sql            # Phase 1 guardrail roles (pa_agent_role, pa_intake_role, pa_admin_role)
+  setup_claims_db_roles.sql     # Phase 2 guardrail roles (claims_agent_role, claims_intake_role) + extends pa_admin_role
+  generate_synthetic_data.py     # regenerates Phase 1 synthetic data
+  generate_synthetic_claims.py    # regenerates Phase 2 synthetic data — ALWAYS re-run this (not
+                                    # just reload a handed-off .sql) so seed SQL and eval JSONL stay in sync
+  ingest_policy_pinecone.py       # policy chunking + Pinecone upsert (--dry-run works without credentials)
 src/
-  schemas.py                 # PARequest, PolicyChunk, Decision, GraphState
-  config.py                  # model gateway, escalation threshold, required-docs checklist
-  audit.py                   # append-only audit log read/write
-  orchestrator.py             # LangGraph wiring
-  ui.py                       # Streamlit app — submit/decide/reviewer-queue/audit-log tabs
+  schemas.py                      # Phase 1 + Phase 2 Pydantic models
+  config.py                       # model gateway, thresholds, required-docs checklists (both phases)
+  audit.py                        # append-only audit log, shared across both phases
+  orchestrator.py                  # Phase 1 LangGraph wiring (linear)
+  claims_orchestrator.py            # Phase 2 LangGraph wiring (parallel dispatch/join + reconcile)
+  ui.py                             # Streamlit app — 8 tabs across both phases
   agents/
-    intake_agent.py           # documentation completeness check (no LLM needed)
-    decision_agent.py         # policy evaluation + citation validation/retry
+    intake_agent.py                 # Phase 1 — documentation completeness (no LLM)
+    decision_agent.py               # Phase 1 — policy evaluation + citation validation/retry
+    claim_intake_agent.py            # Phase 2 — completeness + duplicate detection (no LLM)
+    coverage_agent.py                 # Phase 2 — near-verbatim reuse of decision_agent.py's pattern
+    pa_xref_agent.py                   # Phase 2 — pure DB lookup against Phase 1's pa_decisions (no LLM)
+    fraud_agent.py                      # Phase 2 — reasons over precomputed signals only
+    reconciliation.py                    # Phase 2 — deterministic priority-rule decision logic (no LLM)
   tools/
-    db_tools.py                # three DB roles: agent (decisioning), intake (submission), admin (audit + reviewer decisions)
-    policy_tools.py             # Pinecone retrieval + effective-date filtering
+    db_tools.py                     # Phase 1 — three DB roles (agent / intake / admin)
+    claims_db_tools.py                # Phase 2 — three DB roles + queue/reviewer functions
+    policy_tools.py                   # Pinecone retrieval + effective-date filtering (shared)
+    fraud_signals.py                    # Phase 2 — rule-based volume/threshold anomaly computation
 tests/
-  test_intake_agent.py         # runs intake against all 14 scenarios via live DB
-  test_orchestrator_routing.py # runs the real compiled graph with a scripted model
+  test_intake_agent.py             # Phase 1 — 14/14 against live DB
+  test_orchestrator_routing.py      # Phase 1 — 6/6, scripted model
+  test_claim_intake_agent.py        # Phase 2 — 8/8 against live DB
+  test_fraud_signals.py               # Phase 2 — 2/2, real anomaly vs. normal provider
+  test_coverage_agent.py               # Phase 2 — 4/4, scripted model
+  test_pa_xref_agent.py                 # Phase 2 — 9/9, all five branches
+  test_reconciliation.py                # Phase 2 — 8/8, pure function, scripted signals
+  test_fraud_agent.py                    # Phase 2 — 4/4, scripted model + real computed signals
+  test_claims_orchestrator.py             # Phase 2 — 5/5, empirically proves the parallel join
 ```
 
 ## Setup
@@ -335,17 +370,85 @@ recheck before moving on. Full per-case output is written to
 streamlit run src/ui.py
 ```
 
-Four tabs: submit a request and watch it get decided live, browse all
-requests and their decisions, resolve escalated cases as a human reviewer,
-and search the audit trail by request ID. The Submit Request and Reviewer
-Queue tabs use `pa_intake_role` and `pa_admin_role` respectively (Step 4) —
-if either tab errors on load, double check those two passwords landed
+Eight tabs across both phases: PA submit/decide, PA requests & decisions, PA
+reviewer queue, claim submit/decide, claims & decisions, SIU queue, claims
+examiner queue, and a shared audit log searchable by either a PA request ID
+or a claim ID. The Submit Request/Claim and Reviewer/SIU/Examiner queue tabs
+use `pa_intake_role`/`claims_intake_role` and `pa_admin_role` respectively —
+if a tab errors on load, double check the relevant password landed
 correctly in `.env`.
+
+---
+
+## Phase 2 setup (once Phase 1 above is working)
+
+### 12. Add the Phase 2 database schema and guardrail roles
+
+```bash
+psql -d pa_agent_poc -f scripts/schema_claims.sql
+psql -d pa_agent_poc -f scripts/setup_claims_db_roles.sql
+
+psql -d pa_agent_poc -c "ALTER ROLE claims_agent_role WITH PASSWORD '<your DB_CLAIMS_PASSWORD>';"
+psql -d pa_agent_poc -c "ALTER ROLE claims_intake_role WITH PASSWORD '<your DB_CLAIMS_INTAKE_PASSWORD>';"
+```
+
+Add `DB_CLAIMS_PASSWORD` and `DB_CLAIMS_INTAKE_PASSWORD` to your `.env` —
+two more roles, same three-way separation (decide / submit / review) as
+Phase 1's roles, not a shortcut through them.
+
+### 13. Load the synthetic claims data
+
+```bash
+python scripts/generate_synthetic_claims.py
+psql -d pa_agent_poc -f data/claims/seed_claims.sql
+```
+
+Always regenerate via the Python script rather than only reloading a `.sql`
+file someone hands you — the script produces `seed_claims.sql` and
+`eval/claims_test_cases.jsonl` together from one source, and they **must**
+stay in sync (a real bug in this project's own history came from exactly
+this drifting apart).
+
+**Prerequisite**: several claims scenarios reference real Phase 1 PA
+decisions by `request_id` — if `pa_decisions` is empty (a fresh DB), run
+Phase 1's `eval/run_eval.py` at least once first.
+
+### 14. Verify the Phase 2 DB layer, guardrails, and pure-logic pieces
+
+```bash
+python tests/test_claim_intake_agent.py     # expect 8/8
+python tests/test_fraud_signals.py           # expect 2/2
+python tests/test_reconciliation.py          # expect 8/8 — pure function, no DB/LLM needed
+```
+
+### 15. Verify the Phase 2 agents and orchestrator (scripted models, no live LLM needed yet)
+
+```bash
+python tests/test_coverage_agent.py      # expect 4/4
+python tests/test_pa_xref_agent.py        # expect 9/9 — seeds its own PA fixtures; see the
+                                            # in-file warning about truncating pa_decisions first
+python tests/test_fraud_agent.py           # expect 4/4
+python tests/test_claims_orchestrator.py    # expect 5/5
+```
+
+### 16. Run the real Phase 2 eval — actual LLM reasoning across all three specialist agents
+
+```bash
+python eval/run_claims_eval.py
+```
+
+Expect 100% decision accuracy, 100% citation correctness, 0%
+false-escalation, 0% false-SIU-flag. Full per-case output written to
+`eval/claims_eval_results.json`. If `pa_decisions` was empty going in (see
+Step 13's prerequisite), the PA-linked scenarios will show `missing` instead
+of `matches`/`denied` — that's stale prerequisite data, not a Phase 2 bug.
 
 ## Next steps
 
-Phase 1 is complete — see `BUILD_NOTES.md`. Phase 2 (Claims / Payment
-Integrity) is fully designed (`docs/04-Claims-Usecase-Document.md` through
-`docs/06-Claims-Low-Level-Design.md`) but not yet coded — that's the next
-work to pick up, starting with the new database schema and guardrail roles
-described in the Phase 2 LLD.
+Both phases are complete and verified — see `BUILD_NOTES.md` for the full
+detail, including the real bugs each eval run caught along the way. From
+here, the natural next directions (not yet started): a possible Phase 3
+(appeals workflow, flagged in both Claims documents as deliberately
+deferred), or packaging this project for interview presentation (the eval
+numbers and the debugging history are the strongest material — see
+`BUILD_NOTES.md`).
