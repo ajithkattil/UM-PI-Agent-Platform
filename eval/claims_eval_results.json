@@ -32,7 +32,7 @@
     "expected": "deny",
     "actual": "deny",
     "correct": true,
-    "citation": "Coverage Criteria (visits beyond 20), item 1 (progress notes showing functional improvement or documented plateau not submitted)"
+    "citation": "Coverage Criteria (visits beyond 20), item 1 (progress notes from completed visits showing functional improvement or documented plateau not submitted)"
   },
   {
     "label": "claim_duplicate_original",
