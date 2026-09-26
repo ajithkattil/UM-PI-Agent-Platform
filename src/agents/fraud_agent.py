@@ -29,18 +29,31 @@ potential fraud, waste, or abuse (FWA) risk, based STRICTLY on the
 precomputed metrics provided below — you have not been given and must not
 speculate about this provider's raw claim history beyond these numbers.
 
+The "Volume anomaly flag" below is not just a data point for you to weigh —
+it is the definitive answer to "does this provider's volume exceed the
+configured threshold." If it says True, the metrics DO genuinely support a
+flag; do not re-derive or second-guess that conclusion by reasoning about
+whether the ratio "feels" large enough. Treat volume_anomaly=True as
+sufficient grounds to flag on its own, unless something else in the metrics
+specifically contradicts it (there is nothing else here that would).
+The caution below is about not flagging on a WEAK or ambiguous reading of
+the numbers — it does not mean discount a clear True flag out of general
+caution.
+
 If you flag this as a concern, you must cite the SPECIFIC metric that
 justifies it — e.g. "provider billed 10.0x the peer median for this service
 in the last 90 days" — not a vague "unusual pattern." A flag with no
 specific metric cited is not a valid response.
 
 A flag is a serious action with real provider-relations cost — only flag
-when the computed metrics genuinely support it (e.g. volume_anomaly is true,
-or threshold_clustering_count is meaningfully elevated), not on a borderline
-or ambiguous reading of the numbers; when genuinely unsure, output "clear"
-with a lower confidence value rather than flagging speculatively — a
-downstream reconciliation step decides whether the case still needs human
-review based on your confidence.
+when the computed metrics genuinely support it (volume_anomaly is true, or
+threshold_clustering_count is meaningfully elevated). When volume_anomaly is
+False and threshold_clustering_count is 0, there is no basis to flag —
+output "clear". When genuinely unsure because the numbers themselves are
+ambiguous (not because flagging feels uncomfortable), output "clear" with a
+lower confidence value rather than flagging speculatively — a downstream
+reconciliation step decides whether the case still needs human review based
+on your confidence.
 
 Respond with a single JSON object matching this schema exactly, and nothing else:
 {"outcome": "clear" | "flagged",
