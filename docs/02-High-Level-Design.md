@@ -22,36 +22,30 @@ structured member/plan data, and produces a decision. Multi-turn behavior exists
 specifically for the "missing documentation" loop (Scenario B) — the same request
 thread stays open across a clarification round-trip.
 
-```
-                    ┌─────────────────────────────────────────┐
-                    │              Streamlit UI                │
-                    │   (submit request / view decision /      │
-                    │    reviewer queue for escalations)        │
-                    └───────────────────┬───────────────────────┘
-                                        │
-                    ┌───────────────────▼───────────────────────┐
-                    │            Orchestrator (LangGraph)        │
-                    │                                             │
-                    │   ┌─────────────┐   ┌───────────────────┐  │
-                    │   │  Intake /   │──▶│  Policy Retrieval  │  │
-                    │   │  Completeness│   │  (RAG over policy  │  │
-                    │   │  Agent       │   │  docs, Pinecone)   │  │
-                    │   └─────────────┘   └─────────┬──────────┘  │
-                    │                                 │            │
-                    │                     ┌───────────▼─────────┐  │
-                    │                     │   Decision Agent     │  │
-                    │                     │ approve / deny+cite / │  │
-                    │                     │   escalate            │  │
-                    │                     └───────────┬──────────┘  │
-                    └─────────────────────────────────┼─────────────┘
-                                                        │
-                ┌───────────────────────────────────────┼───────────────────────┐
-                │                                        │                       │
-    ┌───────────▼──────────┐               ┌─────────────▼───────────┐  ┌────────▼────────┐
-    │  Member/Plan DB       │               │   Audit Log (append-    │  │  Human Reviewer  │
-    │  (Postgres, read-only │               │   only, queryable)      │  │  Queue           │
-    │  agent role)          │               │                         │  │  (escalations)   │
-    └───────────────────────┘               └─────────────────────────┘  └──────────────────┘
+```mermaid
+flowchart TD
+    UI["Streamlit UI"] --> Intake
+
+    subgraph Graph["LangGraph Orchestrator (linear, single-agent)"]
+        Intake["Intake / Completeness Agent"]
+        PolicyRetrieval["Policy Retrieval (RAG)"]
+        Decision["Decision Agent"]
+        Escalation["Escalation Node"]
+
+        Intake -->|complete| PolicyRetrieval
+        Intake -->|missing docs| PendingDocs["Pending Documentation"]
+        PolicyRetrieval --> Decision
+        Decision -->|approve / deny| DoneEnd(("End"))
+        Decision -->|escalate| Escalation
+        Escalation --> DoneEnd
+    end
+
+    PolicyRetrieval --> Pinecone[("Pinecone\n4 Coverage Policies")]
+    Intake --> ReqDB[("Postgres\npa_requests, members, plans, providers")]
+    Decision --> DecisionDB[("Postgres\npa_decisions")]
+    Decision --> AuditDB[("Postgres\naudit_log (append-only)")]
+    Escalation --> ReviewerQueue["Human Reviewer Queue"]
+    Decision --> Gateway["Model Gateway\n(Anthropic / OpenAI / local)"]
 ```
 
 ## 3. Components
