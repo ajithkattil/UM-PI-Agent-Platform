@@ -2,9 +2,9 @@
   {
     "label": "claim_pay_matches_approved_mri",
     "expected": "pay",
-    "actual": "flag_siu",
-    "correct": false,
-    "citation": "The volume anomaly flag is true with a 10x peer ratio, a substantial and specific deviation warranting review despite no threshold clustering."
+    "actual": "pay",
+    "correct": true,
+    "citation": null
   },
   {
     "label": "claim_pay_matches_approved_cgm",
@@ -16,9 +16,9 @@
   {
     "label": "claim_deny_pa_was_denied",
     "expected": "deny",
-    "actual": "flag_siu",
-    "correct": false,
-    "citation": "Volume anomaly flag is true with a 10x ratio over peer median, a substantial deviation warranting review despite no threshold clustering."
+    "actual": "deny",
+    "correct": true,
+    "citation": "Prior authorization was denied: Coverage Criteria, item 1 and item 2 (pain duration only 3 weeks, not the required 6 weeks, and no conservative therapy trial documented)"
   },
   {
     "label": "claim_deny_no_pa_on_file",
@@ -51,8 +51,8 @@
   {
     "label": "claim_flag_siu_volume_anomaly",
     "expected": "flag_siu",
-    "actual": "flag_siu",
-    "correct": true,
-    "citation": "The volume anomaly flag is true and the provider's claim count is 10x the peer median, a substantial deviation warranting review, though no threshold clustering was observed."
+    "actual": "deny",
+    "correct": false,
+    "citation": "No prior authorization on file for a service that requires one."
   }
 ]
