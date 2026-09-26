@@ -41,6 +41,26 @@ PA_SEED = {
 
 def seed_pa_decisions():
     from datetime import datetime, timezone
+
+    # This test needs FULLY controlled fixtures to be deterministic — your
+    # real pa_decisions rows (from repeated eval/run_eval.py runs) are all
+    # more recent than these seeded timestamps, so without clearing them
+    # first, get_pa_decision_for_service correctly picks YOUR real, newer
+    # decision instead of this test's fixture — which is the right behavior
+    # for production code, just not what this isolated unit test wants.
+    #
+    # This can't be done from inside the script: pa_agent_role deliberately
+    # has no DELETE/TRUNCATE privilege on pa_decisions (that's the guardrail
+    # working correctly, not a bug), so clearing the table requires your own
+    # full-privilege psql session, same as every other DB reset in this
+    # project. Run this yourself BEFORE running this test:
+    #
+    #   psql -d pa_agent_poc -c "TRUNCATE pa_decisions;"
+    #
+    # CONSEQUENCE: that wipes your real Phase 1 eval history. Re-run Phase
+    # 1's eval/run_eval.py afterward if you want that data back before
+    # running Phase 2's real eval/run_claims_eval.py again.
+
     seed_now = datetime(2026, 9, 24, tzinfo=timezone.utc)  # matches CLAIMS_NOW in generate_synthetic_claims.py
     for label, (outcome, citation, days_before) in PA_SEED.items():
         record_decision(
