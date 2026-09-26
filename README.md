@@ -156,6 +156,10 @@ Read in order — each one assumes the last is settled:
    architecture and diagram for the supervisor + three-specialist-agent
    design, why multi-agent is genuinely justified here (unlike Phase 1),
    data stores, open questions for the LLD (which comes next)
+6. **[06-Claims-Low-Level-Design.md](docs/06-Claims-Low-Level-Design.md)** —
+   new table schemas, guardrail roles, Pydantic schemas, deterministic
+   reconciliation logic (fixed priority rules, not an LLM call), rule-based
+   fraud signal computation, tool signatures, eval plan. Code comes next.
 
 ## What's built vs. what's proven
 
