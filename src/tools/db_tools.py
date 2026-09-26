@@ -84,7 +84,7 @@ def get_prior_requests_for_member(member_id: str) -> list[dict]:
 
 def record_decision(request_id: str, outcome: str, citation: str | None,
                      confidence: float, decided_by: str = "agent",
-                     role: str = "agent") -> str:
+                     role: str = "agent", decided_at: datetime | None = None) -> str:
     decision_id = str(uuid.uuid4())
     with _connect(role) as conn, conn.cursor() as cur:
         cur.execute(
@@ -92,7 +92,7 @@ def record_decision(request_id: str, outcome: str, citation: str | None,
             "(decision_id, request_id, outcome, citation, confidence, decided_at, decided_by) "
             "VALUES (%s, %s, %s, %s, %s, %s, %s)",
             (decision_id, request_id, outcome, citation, confidence,
-             datetime.now(timezone.utc), decided_by),
+             decided_at or datetime.now(timezone.utc), decided_by),
         )
         conn.commit()
     return decision_id

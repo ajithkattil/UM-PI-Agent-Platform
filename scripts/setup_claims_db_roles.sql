@@ -11,11 +11,13 @@ BEGIN
 END
 $$;
 
--- Read-only on claims data AND on Phase 1's pa_decisions — this is the
--- literal DB-level expression of "Phase 2 reads Phase 1's output" from the
--- combined architecture diagram.
-GRANT SELECT ON claims, claim_documents, members, plans, providers, pa_decisions
-    TO claims_agent_role;
+-- Read-only on claims data AND on Phase 1's pa_requests/pa_decisions — this
+-- is the literal DB-level expression of "Phase 2 reads Phase 1's output"
+-- from the combined architecture diagram. pa_requests is needed alongside
+-- pa_decisions because pa_decisions has no member_id/service_code of its
+-- own — the PA Cross-Reference Agent's lookup joins the two.
+GRANT SELECT ON claims, claim_documents, members, plans, providers,
+    pa_requests, pa_decisions TO claims_agent_role;
 
 -- Can record its own decisions and audit entries, same append-only pattern
 -- as pa_agent_role. Cannot write to claims/claim_documents at all — the
