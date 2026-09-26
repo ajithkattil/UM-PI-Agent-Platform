@@ -1,1 +1,10 @@
 .env
+.DS_Store
+**/.DS_Store
+__pycache__/
+**/__pycache__/
+*.pyc
+venv/
+.env
+data/cache/*.json
+eval/eval_results.json
