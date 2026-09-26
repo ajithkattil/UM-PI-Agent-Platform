@@ -1,0 +1,58 @@
+[
+  {
+    "label": "claim_pay_matches_approved_mri",
+    "expected": "pay",
+    "actual": "flag_siu",
+    "correct": false,
+    "citation": "The volume anomaly flag is true with a 10x peer ratio, a substantial and specific deviation warranting review despite no threshold clustering."
+  },
+  {
+    "label": "claim_pay_matches_approved_cgm",
+    "expected": "pay",
+    "actual": "pay",
+    "correct": true,
+    "citation": null
+  },
+  {
+    "label": "claim_deny_pa_was_denied",
+    "expected": "deny",
+    "actual": "flag_siu",
+    "correct": false,
+    "citation": "Volume anomaly flag is true with a 10x ratio over peer median, a substantial deviation warranting review despite no threshold clustering."
+  },
+  {
+    "label": "claim_deny_no_pa_on_file",
+    "expected": "deny",
+    "actual": "deny",
+    "correct": true,
+    "citation": "No prior authorization on file for a service that requires one."
+  },
+  {
+    "label": "claim_deny_coverage_independent_of_pa",
+    "expected": "deny",
+    "actual": "deny",
+    "correct": true,
+    "citation": "Coverage Criteria (visits beyond 20), item 1 (progress notes from completed visits showing functional improvement or documented plateau not submitted)"
+  },
+  {
+    "label": "claim_duplicate_original",
+    "expected": "duplicate",
+    "actual": "duplicate",
+    "correct": true,
+    "citation": null
+  },
+  {
+    "label": "claim_escalate_ambiguous",
+    "expected": "escalate",
+    "actual": "escalate",
+    "correct": true,
+    "citation": null
+  },
+  {
+    "label": "claim_flag_siu_volume_anomaly",
+    "expected": "flag_siu",
+    "actual": "flag_siu",
+    "correct": true,
+    "citation": "The volume anomaly flag is true and the provider's claim count is 10x the peer median, a substantial deviation warranting review, though no threshold clustering was observed."
+  }
+]

@@ -62,6 +62,10 @@ def pa_request_id(label: str) -> str:
     return uid(f"req-{label}")
 
 
+PROVIDERS_NEW = [
+    {"provider_id": uid("prov-5"), "npi": "1234567894", "provider_name": "Dr. Aisha Patel, Orthopedics"},
+]
+
 CLAIMS_NOW = datetime(2026, 9, 24, 9, 0, 0)
 
 
@@ -91,10 +95,18 @@ BACKGROUND_CLAIMS = [
      "billed_amount": 850.00, "days_ago_service": 15 + i * 10}
     for i in range(1)
 ] + [
-    {"label": f"bg_mri_provider1_{i}", "member_i": (i % 10) + 1, "provider_i": 1,
+    {"label": f"bg_mri_provider5_{i}", "member_i": (i % 10) + 1, "provider_i": 5,
      "service_code": "72148", "service_description": "MRI Lumbar Spine without contrast",
      "billed_amount": 850.00, "days_ago_service": 5 + i * 8}
-    for i in range(7)  # the anomalous provider — 7 claims vs. peers' 1 each
+    for i in range(7)  # the anomalous provider — 7 claims vs. peers' 1 each.
+    # Deliberately NOT provider 1 (Dr. Elena Ruiz) — she's also the provider
+    # for claim_pay_matches_approved_mri and claim_deny_pa_was_denied, and
+    # fraud_signals.compute_signals() operates at the provider+service
+    # level, not per-claim. Reusing her for the anomaly would have made
+    # EVERY claim from her inherit the fraud signal, contaminating two
+    # scenarios that were never meant to test fraud logic at all — which is
+    # exactly what happened before this fix (see SIU_FLAG_THRESHOLD tuning
+    # notes / eval history).
 ]
 
 # ============================================================
@@ -178,7 +190,7 @@ SCENARIOS = [
     },
     {
         "label": "claim_flag_siu_volume_anomaly",
-        "member_i": 9, "provider_i": 1, "service_code": "72148",  # provider 1 = the anomalous one
+        "member_i": 9, "provider_i": 5, "service_code": "72148",  # provider 5 = the isolated anomalous provider
         "service_description": "MRI Lumbar Spine without contrast",
         "billed_amount": 850.00, "days_ago_service": 2,
         "documents": ["physician_progress_note", "conservative_therapy_record"],
@@ -220,7 +232,16 @@ def build_claim_insert(claim_id, member_i, provider_i, service_code,
 
 def build_seed_sql() -> str:
     lines = ["-- Auto-generated synthetic claims. Do not use with real PHI.\n"]
-    lines.append("-- Background claims: establish peer claim-volume baseline (not individually eval-scored)\n")
+    lines.append("-- New provider, isolated specifically for the fraud/SIU test scenario\n")
+    lines.append("-- (see PROVIDERS_NEW comment above for why this can't reuse an existing one)\n")
+    for p in PROVIDERS_NEW:
+        lines.append(
+            f"INSERT INTO providers (provider_id, npi, provider_name) VALUES "
+            f"('{p['provider_id']}', '{p['npi']}', '{p['provider_name']}') "
+            f"ON CONFLICT (provider_id) DO NOTHING;"
+        )
+
+    lines.append("\n-- Background claims: establish peer claim-volume baseline (not individually eval-scored)\n")
 
     for bg in BACKGROUND_CLAIMS:
         claim_id = uid(f"claim-{bg['label']}")

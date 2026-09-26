@@ -93,6 +93,25 @@ def get_pa_decision_for_service(member_id: str, service_code: str) -> dict | Non
         return dict(row) if row else None
 
 
+def get_earliest_pa_approval_date(member_id: str, service_code: str):
+    """The EARLIEST approved decision's date for this member+service, not
+    the latest. This is what a date-plausibility check should compare
+    against: re-confirming an existing authorization (which happens every
+    time Phase 1's eval is re-run, inserting a fresh decision row with a
+    later timestamp) should never retroactively invalidate a service that
+    was genuinely pre-authorized the first time. Returns None if no approved
+    decision exists at all."""
+    with _connect() as conn, conn.cursor() as cur:
+        cur.execute(
+            "SELECT MIN(d.decided_at) FROM pa_decisions d "
+            "JOIN pa_requests r ON d.request_id = r.request_id "
+            "WHERE r.member_id = %s AND r.service_code = %s AND d.outcome = 'approve'",
+            (member_id, service_code),
+        )
+        row = cur.fetchone()
+        return row[0] if row and row[0] else None
+
+
 def get_provider_claim_history(provider_id: str, service_code: str,
                                 lookback_days: int) -> list[dict]:
     """Raw claim history for the Fraud Agent's precomputed signals

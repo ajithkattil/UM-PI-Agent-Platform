@@ -20,7 +20,9 @@ plausibility judgment:
 
 from src.schemas import ClaimGraphState, SpecialistSignal
 from src.audit import write_audit_entry
-from src.tools.claims_db_tools import get_pa_decision_for_service, _connect as claims_connect
+from src.tools.claims_db_tools import (
+    get_pa_decision_for_service, get_earliest_pa_approval_date, _connect as claims_connect,
+)
 
 
 def pa_xref_node(state: ClaimGraphState) -> ClaimGraphState:
@@ -47,14 +49,19 @@ def pa_xref_node(state: ClaimGraphState) -> ClaimGraphState:
             reasoning_summary="A prior authorization request for this service was escalated and never resolved to approve or deny.",
         )
     elif pa_decision["outcome"] == "approve":
-        decided_date = pa_decision["decided_at"].date()
+        # Use the EARLIEST approval on file, not this decision's own
+        # decided_at — re-confirming an authorization (which happens every
+        # time Phase 1's eval is re-run) inserts a fresh, later-timestamped
+        # row without invalidating the original, genuine approval.
+        earliest_approval = get_earliest_pa_approval_date(claim.member_id, claim.service_code)
+        decided_date = earliest_approval.date() if earliest_approval else pa_decision["decided_at"].date()
         if claim.date_of_service < decided_date:
             signal = SpecialistSignal(
                 agent_name="pa_xref", flagged_outcome="mismatch",
                 citation="Service date precedes the prior authorization decision date.",
                 confidence=0.5,
                 reasoning_summary=f"Claim date of service ({claim.date_of_service}) is before "
-                                   f"the PA was decided ({decided_date}) — service could not "
+                                   f"the PA was first approved ({decided_date}) — service could not "
                                    f"have been authorized in advance as claimed.",
             )
         else:
