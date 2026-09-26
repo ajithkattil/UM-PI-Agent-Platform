@@ -83,9 +83,10 @@ def get_prior_requests_for_member(member_id: str) -> list[dict]:
 
 
 def record_decision(request_id: str, outcome: str, citation: str | None,
-                     confidence: float, decided_by: str = "agent") -> str:
+                     confidence: float, decided_by: str = "agent",
+                     role: str = "agent") -> str:
     decision_id = str(uuid.uuid4())
-    with _connect() as conn, conn.cursor() as cur:
+    with _connect(role) as conn, conn.cursor() as cur:
         cur.execute(
             "INSERT INTO pa_decisions "
             "(decision_id, request_id, outcome, citation, confidence, decided_at, decided_by) "
@@ -182,5 +183,8 @@ def list_escalated_awaiting_review() -> list[dict]:
 def record_reviewer_decision(request_id: str, outcome: str, citation: str, reviewer_id: str) -> str:
     """A human reviewer resolving an escalated case — written by the admin
     role, never the agent role, so 'agent decided' vs 'person decided' stays
-    distinguishable by decided_by."""
-    return record_decision(request_id, outcome, citation, confidence=1.0, decided_by=reviewer_id)
+    distinguishable by decided_by AND by which DB credential actually wrote
+    the row (not just the string value — that's what makes this a real
+    separation, not a label)."""
+    return record_decision(request_id, outcome, citation, confidence=1.0,
+                            decided_by=reviewer_id, role="admin")
