@@ -81,6 +81,19 @@ DUPLICATE_CLAIM_WINDOW_DAYS = int(os.getenv("DUPLICATE_CLAIM_WINDOW_DAYS", "14")
 FRAUD_LOOKBACK_WINDOW_DAYS = int(os.getenv("FRAUD_LOOKBACK_WINDOW_DAYS", "90"))
 FRAUD_VOLUME_THRESHOLD_MULTIPLIER = float(os.getenv("FRAUD_VOLUME_THRESHOLD_MULTIPLIER", "3.0"))
 
+# Illustrative placeholder amounts — a real payer would supply actual review
+# thresholds per service. Used for the threshold-clustering signal in
+# fraud_signals.py; unlike the volume-anomaly signal, no synthetic scenario
+# currently plants a clustering pattern to test against, so this signal is
+# implemented but not yet eval-verified. Documented here rather than silently
+# treated as proven.
+REVIEW_THRESHOLDS: dict[str, float] = {
+    "72148": 1000.0,
+    "A4239": 500.0,
+    "97110": 300.0,
+    "43644": 30000.0,
+}
+
 # Same pattern as Phase 1's REQUIRED_DOCS, but flat per service_code — claims
 # have no request_type (standard/expedited) distinction. Deliberately narrow:
 # richer documentation gaps (e.g. missing progress notes) are the Coverage
