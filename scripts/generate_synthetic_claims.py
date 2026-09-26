@@ -159,6 +159,8 @@ SCENARIOS = [
         "member_i": 5, "provider_i": 2, "service_code": "A4239",
         "service_description": "Continuous Glucose Monitor supplies",
         "billed_amount": 120.00, "days_ago_service": 4,  # SAME date_of_service as claim_pay_matches_approved_cgm
+        "submitted_days_ago": 1,  # submitted well AFTER the original (submitted_days_ago=3) —
+                                   # this is what makes it unambiguously "the duplicate," not a tie
         "documents": ["physician_order", "glucose_monitoring_log", "hba1c_result"],
         "clinical_notes": "Duplicate submission of the same CGM supply claim already billed.",
         "linked_pa_label": "cgm_approve",
@@ -193,11 +195,18 @@ SCENARIOS = [
 
 def build_claim_insert(claim_id, member_i, provider_i, service_code,
                         service_description, billed_amount, days_ago_service,
-                        clinical_notes, doc_status="submitted"):
+                        clinical_notes, doc_status="submitted",
+                        submitted_days_ago=None):
     member = member_id(member_i)
     provider = provider_id(provider_i)
     date_of_service = days_ago(days_ago_service)
-    submitted_at = ts_days_ago(max(days_ago_service - 1, 0))
+    # Normally submitted shortly after service; submitted_days_ago lets a
+    # scenario override this explicitly (needed for the duplicate pair,
+    # where both claims share the same date_of_service but must have
+    # genuinely different submitted_at times for "which one is the
+    # duplicate" to be well-defined rather than a tie).
+    submitted_offset = submitted_days_ago if submitted_days_ago is not None else max(days_ago_service - 1, 0)
+    submitted_at = ts_days_ago(submitted_offset)
     notes = clinical_notes.replace("'", "''")
     return (
         f"INSERT INTO claims (claim_id, member_id, provider_id, service_code, "
@@ -228,7 +237,7 @@ def build_seed_sql() -> str:
         lines.append(build_claim_insert(
             claim_id, s["member_i"], s["provider_i"], s["service_code"],
             s["service_description"], s["billed_amount"], s["days_ago_service"],
-            s["clinical_notes"],
+            s["clinical_notes"], submitted_days_ago=s.get("submitted_days_ago"),
         ))
         for doc in s["documents"]:
             doc_id = uid(f"claimdoc-{s['label']}-{doc}")
