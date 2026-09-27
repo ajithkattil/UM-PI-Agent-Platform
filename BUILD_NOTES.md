@@ -167,8 +167,15 @@ adversarially the same way every other guardrail in this project has been.
     produces both files from one source and they must be updated together.
 
 ## Phase 2: Core logic complete and verified end-to-end (8/8 real eval).
-Remaining: the Streamlit UI extension (a Claims tab, plus splitting the
-Reviewer Queue into separate SIU and claims-examiner queues per the HLD).
+UI extension built (`src/ui.py`, tabs 4-7: Submit Claim, Claims &
+Decisions, SIU Queue, Claims Examiner Queue) and confirmed booting cleanly
+with no error banner across all four new tabs' default-load queries
+(members/providers dropdowns, claims listing, SIU queue, examiner queue).
+**Not yet confirmed**: an actual live submit-through-decide-through-review
+click-through, the way Phase 1's UI was — I can boot the server and prove
+nothing crashes, but I don't have a browser to click through it myself. That
+needs your machine, same as Phase 1's Reviewer Queue did before it was
+verified for real.
 
 ---
 
