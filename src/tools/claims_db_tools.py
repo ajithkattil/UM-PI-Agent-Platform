@@ -188,3 +188,90 @@ def create_claim(member_id: str, provider_id: str, service_code: str,
             )
         conn.commit()
     return claim_id
+
+
+def list_claims_with_decisions() -> list[dict]:
+    """Latest decision (if any) per claim, newest first — powers the
+    'Claims & Decisions' tab. Mirrors list_requests_with_decisions() from
+    Phase 1's db_tools.py."""
+    with _connect("admin") as conn, conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+        cur.execute("""
+            SELECT c.claim_id, c.service_code, c.service_description, c.billed_amount,
+                   c.date_of_service, c.submitted_at,
+                   d.outcome, d.citation, d.confidence, d.decided_by, d.decided_at
+            FROM claims c
+            LEFT JOIN LATERAL (
+                SELECT * FROM claim_decisions
+                WHERE claim_id = c.claim_id
+                ORDER BY decided_at DESC LIMIT 1
+            ) d ON true
+            ORDER BY c.submitted_at DESC
+        """)
+        return [dict(row) for row in cur.fetchall()]
+
+
+def list_siu_queue() -> list[dict]:
+    """Claims whose latest decision is an agent-produced SIU flag — separate
+    from the claims-examiner queue below on purpose (HLD Section 4.7): SIU
+    is specifically for suspected fraud/waste/abuse, a merely ambiguous case
+    is a different queue with a different reviewer and different stakes."""
+    with _connect("admin") as conn, conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+        cur.execute("""
+            SELECT c.claim_id, c.service_code, c.service_description, c.billed_amount,
+                   c.clinical_notes, d.fraud_signal, d.confidence, d.decided_at
+            FROM claims c
+            JOIN LATERAL (
+                SELECT fraud_signal, confidence, decided_at, outcome, decided_by
+                FROM claim_decisions
+                WHERE claim_id = c.claim_id
+                ORDER BY decided_at DESC LIMIT 1
+            ) d ON true
+            WHERE d.outcome = 'flag_siu' AND d.decided_by = 'agent'
+            ORDER BY d.decided_at ASC
+        """)
+        return [dict(row) for row in cur.fetchall()]
+
+
+def list_claims_examiner_queue() -> list[dict]:
+    """Claims whose latest decision is an agent-produced ordinary escalation
+    (ambiguous, not fraud-suspected) — the claims-side equivalent of Phase
+    1's reviewer queue."""
+    with _connect("admin") as conn, conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+        cur.execute("""
+            SELECT c.claim_id, c.service_code, c.service_description, c.billed_amount,
+                   c.clinical_notes, d.coverage_signal, d.pa_xref_signal, d.fraud_signal,
+                   d.confidence, d.decided_at
+            FROM claims c
+            JOIN LATERAL (
+                SELECT coverage_signal, pa_xref_signal, fraud_signal, confidence,
+                       decided_at, outcome, decided_by
+                FROM claim_decisions
+                WHERE claim_id = c.claim_id
+                ORDER BY decided_at DESC LIMIT 1
+            ) d ON true
+            WHERE d.outcome = 'escalate' AND d.decided_by = 'agent'
+            ORDER BY d.decided_at ASC
+        """)
+        return [dict(row) for row in cur.fetchall()]
+
+
+def record_claim_reviewer_decision(claim_id: str, outcome: str, citation: str, reviewer_id: str) -> str:
+    """A human (SIU investigator or claims examiner) resolving a flagged/
+    escalated claim — written by the admin role, never the agent role, same
+    separation as Phase 1's record_reviewer_decision."""
+    import json
+    from src.schemas import SpecialistSignal
+    empty_signal = SpecialistSignal(agent_name="coverage", flagged_outcome="n/a",
+                                     confidence=1.0, reasoning_summary="reviewer decision, no agent signal")
+    decision_id = str(uuid.uuid4())
+    with _connect("admin") as conn, conn.cursor() as cur:
+        cur.execute(
+            "INSERT INTO claim_decisions (decision_id, claim_id, outcome, citation, "
+            "coverage_signal, pa_xref_signal, fraud_signal, confidence, decided_at, decided_by) "
+            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+            (decision_id, claim_id, outcome, citation,
+             json.dumps(empty_signal.model_dump()), json.dumps(empty_signal.model_dump()),
+             json.dumps(empty_signal.model_dump()), 1.0, datetime.now(timezone.utc), reviewer_id),
+        )
+        conn.commit()
+    return decision_id

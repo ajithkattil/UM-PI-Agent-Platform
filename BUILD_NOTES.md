@@ -169,3 +169,38 @@ adversarially the same way every other guardrail in this project has been.
 ## Phase 2: Core logic complete and verified end-to-end (8/8 real eval).
 Remaining: the Streamlit UI extension (a Claims tab, plus splitting the
 Reviewer Queue into separate SIU and claims-examiner queues per the HLD).
+
+---
+
+## Phase 2 UI extension — Verified for real
+
+- **App boots cleanly** with all 8 tabs (4 PA + 4 Claims): HTTP 200, no
+  server-side crash, no error banner, across the full default-state script
+  run.
+- **`list_claims_with_decisions`**: confirmed against the live DB — all 17
+  claims returned correctly.
+- **SIU Queue full lifecycle**: a real `flag_siu` decision written, confirmed
+  it appears in `list_siu_queue`, resolved via
+  `record_claim_reviewer_decision` (as an investigator, not the agent),
+  confirmed it drops off the queue afterward — same rigor as Phase 1's
+  Reviewer Queue test.
+- **Claims Examiner Queue full lifecycle**: same test, independently, with a
+  real `escalate` decision — confirmed appears, confirmed resolves and drops
+  off.
+- **Audit Log tab**: extended to search both PA request IDs and claim IDs
+  against the shared `audit_log` table — not independently re-tested here,
+  but relies on the same `get_audit_trail` function already proven working
+  in Phase 1, applied to `claim_id` values that Phase 2's own agents already
+  write to via `write_audit_entry`.
+
+## Not yet verified
+
+- **Actually clicking through the UI in a browser** — everything above was
+  verified via direct function calls and a boot/crash check, the same
+  limitation Phase 1's UI had before you personally tested it live. The
+  Submit Claim tab's Streamlit widget wiring (dropdowns, multiselect, the
+  submit button's live graph invocation) has not been exercised by an actual
+  person clicking through it yet.
+
+## Phase 2 UI: Backend logic fully verified. Needs a live human pass
+(same as Phase 1's UI did) before it's genuinely complete, not just built.
