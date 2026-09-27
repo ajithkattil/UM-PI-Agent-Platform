@@ -173,9 +173,11 @@ real LLM reasoning against your own Anthropic + Pinecone keys:
   false-escalation rate. Full Streamlit UI, all four PA tabs confirmed
   working live.
 - **Phase 2**: 100% decision accuracy, 100% citation correctness, 0%
-  false-escalation, 0% false-SIU-flag. Full Streamlit UI extension, all four
-  claims tabs (Submit Claim, Claims & Decisions, SIU Queue, Claims Examiner
-  Queue).
+  false-escalation, 0% false-SIU-flag. Streamlit UI extension built and
+  live-click-tested for Submit Claim, Claims & Decisions, and the SIU
+  Queue (including a real investigator resolution); the **Claims Examiner
+  Queue's reviewer flow has not yet been tested live** — see
+  `BUILD_NOTES.md` for the precise breakdown of what's confirmed vs. not.
 
 See that file for the real bugs each eval run caught and fixed along the
 way — they're better evidence of engineering rigor than a clean run would

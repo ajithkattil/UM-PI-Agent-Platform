@@ -168,14 +168,30 @@ adversarially the same way every other guardrail in this project has been.
 
 ## Phase 2: Core logic complete and verified end-to-end (8/8 real eval).
 UI extension built (`src/ui.py`, tabs 4-7: Submit Claim, Claims &
-Decisions, SIU Queue, Claims Examiner Queue) and confirmed booting cleanly
-with no error banner across all four new tabs' default-load queries
-(members/providers dropdowns, claims listing, SIU queue, examiner queue).
-**Not yet confirmed**: an actual live submit-through-decide-through-review
-click-through, the way Phase 1's UI was — I can boot the server and prove
-nothing crashes, but I don't have a browser to click through it myself. That
-needs your machine, same as Phase 1's Reviewer Queue did before it was
-verified for real.
+Decisions, SIU Queue, Claims Examiner Queue) and live-click-tested through
+the actual browser, not just boot-tested:
+- **Confirmed live**: Submit Claim → real-time decisioning, observed
+  multiple times with real citations matching the eval run — pay, two
+  distinct deny reasons (PA-missing, coverage-independent), duplicate
+  detection (correctly caught a same-day resubmission), and flag_siu (the
+  real planted-anomaly claim, `1d5a8aa5...`, showing the exact 8.0x
+  citation from the eval run)
+- **Confirmed live**: SIU Queue displays the flagged claim with full fraud
+  signal detail, and submitting an investigator resolution correctly
+  emptied the queue (`"Nothing flagged for SIU right now"` after
+  submission) — strong evidence the reviewer-decision write succeeded and
+  the query correctly excludes resolved cases
+- **NOT yet tested**: the Claims Examiner Queue's reviewer flow at all
+  (display or resolution) — deferred, not something to assume works by
+  analogy to the SIU queue just because the code is structurally similar
+- **NOT independently confirmed**: that `Claims & Decisions` shows the
+  investigator's own ID (not `agent`) after the SIU resolution above — the
+  queue clearing implies it, but this wasn't directly screenshotted the way
+  Phase 1's equivalent check was via a direct SQL query
+
+**Honest bottom line**: Phase 2 is not fully verified end-to-end through the
+UI yet, in the same complete sense Phase 1 is. The logic layer is proven;
+one specific UI path (Claims Examiner Queue) genuinely is not.
 
 ---
 
