@@ -8,3 +8,4 @@ venv/
 .env
 data/cache/*.json
 eval/eval_results.json
+MENTOR-GUIDE.md
